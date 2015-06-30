@@ -87,5 +87,8 @@ double librandom::LognormalRandomDev::operator()( RngPtr r ) const
   if ( S != 0 )
     S = V1 * std::sqrt( -2 * std::log( S ) / S );
 
-  return std::exp( mu_ + sigma_ * S );
+  if ( mu_ < 0)
+    return (-1)*std::exp(-mu_ + sigma_ * S);
+  else 
+    return std::exp( mu_ + sigma_ * S );
 }
