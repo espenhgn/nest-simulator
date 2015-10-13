@@ -29,6 +29,7 @@
 #include "dictutils.h"
 #include "numerics.h"
 #include "universal_data_logger_impl.h"
+#include "propagator_stability.h"
 
 #include <limits>
 
@@ -58,25 +59,16 @@ RecordablesMap< iaf_tum_2000 >::create()
  * ---------------------------------------------------------------- */
 
 nest::iaf_tum_2000::Parameters_::Parameters_()
-  : Tau_( 10.0 )
-  , // in ms
-  C_( 250.0 )
-  , // in pF
-  tau_ref_tot_( 2.0 )
-  , // in ms
-  tau_ref_abs_( 2.0 )
-  , // in ms
-  U0_( -70.0 )
-  , // in mV
-  I_e_( 0.0 )
-  , // in pA
-  Theta_( -55.0 - U0_ )
-  , // relative U0_
-  V_reset_( -70.0 - U0_ )
-  , // in mV
-  tau_ex_( 2.0 )
-  ,              // in ms
-  tau_in_( 2.0 ) // in ms
+  : Tau_( 10.0 )            // in ms
+  , C_( 250.0 )             // in pF
+  , tau_ref_tot_( 2.0 )     // in ms
+  , tau_ref_abs_( 2.0 )     // in ms
+  , U0_( -70.0 )            // in mV
+  , I_e_( 0.0 )             // in pA
+  , Theta_( -55.0 - U0_ )   // relative U0_
+  , V_reset_( -70.0 - U0_ ) // in mV
+  , tau_ex_( 2.0 )          // in ms
+  , tau_in_( 2.0 )          // in ms
 {
 }
 
@@ -147,11 +139,6 @@ nest::iaf_tum_2000::Parameters_::set( const DictionaryDatum& d )
 
   if ( Tau_ <= 0 || tau_ex_ <= 0 || tau_in_ <= 0 || tau_ref_tot_ <= 0 || tau_ref_abs_ <= 0 )
     throw BadProperty( "All time constants must be strictly positive." );
-
-  if ( Tau_ == tau_ex_ || Tau_ == tau_in_ )
-    throw BadProperty(
-      "Membrane and synapse time constant(s) must differ."
-      "See note in documentation." );
 
   return delta_EL;
 }
@@ -245,20 +232,15 @@ nest::iaf_tum_2000::calibrate()
   V_.P22_ = std::exp( -h / P_.Tau_ );
   // P22_ = 1.0-h/Tau_;
 
-  // these depend on the above. Please do not change the order.
-  // TODO: use expm1 here to improve accuracy for small timesteps
+  // these are determined according to a numeric stability criterion
+  V_.P21ex_ = propagator_32( P_.tau_ex_, P_.Tau_, P_.C_, h );
+  V_.P21in_ = propagator_32( P_.tau_in_, P_.Tau_, P_.C_, h );
 
-  V_.P21ex_ = P_.Tau_ / ( P_.C_ * ( 1.0 - P_.Tau_ / P_.tau_ex_ ) ) * V_.P11ex_
-    * ( 1.0 - std::exp( h * ( 1.0 / P_.tau_ex_ - 1.0 / P_.Tau_ ) ) );
   // P21ex_ = h/C_;
-
-  V_.P21in_ = P_.Tau_ / ( P_.C_ * ( 1.0 - P_.Tau_ / P_.tau_in_ ) ) * V_.P11in_
-    * ( 1.0 - std::exp( h * ( 1.0 / P_.tau_in_ - 1.0 / P_.Tau_ ) ) );
   // P21in_ = h/C_;
 
   V_.P20_ = P_.Tau_ / P_.C_ * ( 1.0 - V_.P22_ );
   // P20_ = h/C_;
-
 
   // TauR specifies the length of the absolute refractory period as
   // a double_t in ms. The grid based iaf_tum_2000 can only handle refractory

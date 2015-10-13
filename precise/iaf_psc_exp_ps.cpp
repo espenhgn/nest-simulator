@@ -30,6 +30,7 @@
 #include "dictutils.h"
 #include "numerics.h"
 #include "universal_data_logger_impl.h"
+#include "propagator_stability.h"
 
 #include <limits>
 
@@ -57,25 +58,16 @@ RecordablesMap< iaf_psc_exp_ps >::create()
  * ---------------------------------------------------------------- */
 
 nest::iaf_psc_exp_ps::Parameters_::Parameters_()
-  : tau_m_( 10.0 )
-  , // ms
-  tau_ex_( 2.0 )
-  , // ms
-  tau_in_( 2.0 )
-  , // ms
-  c_m_( 250.0 )
-  , // pF
-  t_ref_( 2.0 )
-  , // ms
-  E_L_( -70.0 )
-  , // mV
-  I_e_( 0.0 )
-  , // pA
-  U_th_( -55.0 - E_L_ )
-  , // mV, rel to E_L_
-  U_min_( -std::numeric_limits< double_t >::infinity() )
-  ,                        // mV
-  U_reset_( -70.0 - E_L_ ) // mV, rel to E_L_
+  : tau_m_( 10.0 )                                         // ms
+  , tau_ex_( 2.0 )                                         // ms
+  , tau_in_( 2.0 )                                         // ms
+  , c_m_( 250.0 )                                          // pF
+  , t_ref_( 2.0 )                                          // ms
+  , E_L_( -70.0 )                                          // mV
+  , I_e_( 0.0 )                                            // pA
+  , U_th_( -55.0 - E_L_ )                                  // mV, rel to E_L_
+  , U_min_( -std::numeric_limits< double_t >::infinity() ) // mV
+  , U_reset_( -70.0 - E_L_ )                               // mV, rel to E_L_
 {
 }
 
@@ -164,11 +156,6 @@ nest::iaf_psc_exp_ps::Parameters_::set( const DictionaryDatum& d )
   if ( tau_m_ <= 0 || tau_ex_ <= 0 || tau_in_ <= 0 )
     throw BadProperty( "All time constants must be strictly positive." );
 
-  if ( tau_m_ == tau_ex_ || tau_m_ == tau_in_ )
-    throw BadProperty(
-      "Membrane and synapse time constant(s) must differ."
-      "See note in documentation." );
-
   return delta_EL;
 }
 
@@ -243,10 +230,10 @@ nest::iaf_psc_exp_ps::calibrate()
   V_.expm1_tau_ex_ = numerics::expm1( -V_.h_ms_ / P_.tau_ex_ );
   V_.expm1_tau_in_ = numerics::expm1( -V_.h_ms_ / P_.tau_in_ );
   V_.P20_ = -P_.tau_m_ / P_.c_m_ * V_.expm1_tau_m_;
-  V_.P21_ex_ = -P_.tau_m_ * P_.tau_ex_ / ( P_.tau_m_ - P_.tau_ex_ ) / P_.c_m_
-    * ( V_.expm1_tau_ex_ - V_.expm1_tau_m_ );
-  V_.P21_in_ = -P_.tau_m_ * P_.tau_in_ / ( P_.tau_m_ - P_.tau_in_ ) / P_.c_m_
-    * ( V_.expm1_tau_in_ - V_.expm1_tau_m_ );
+
+  // these are determined according to a numeric stability criterion
+  V_.P21_ex_ = propagator_32( P_.tau_ex_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
+  V_.P21_in_ = propagator_32( P_.tau_in_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
 
   V_.refractory_steps_ = Time( Time::ms( P_.t_ref_ ) ).get_steps();
   assert( V_.refractory_steps_ >= 1 ); // since t_ref_ >= sim step size, this can only fail in error

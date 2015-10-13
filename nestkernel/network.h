@@ -44,6 +44,8 @@
 
 #include "sparse_node_array.h"
 
+#include "growth_curve_factory.h"
+
 #ifdef M_ERROR
 #undef M_ERROR
 #endif
@@ -70,6 +72,7 @@ class SiblingContainer;
 class Event;
 class Node;
 class GenericConnBuilderFactory;
+class GenericGrowthCurveFactory;
 class GIDCollection;
 
 /**
@@ -166,7 +169,7 @@ public:
    * @param   private_model  If true, model is not entered in modeldict.
    * @return void
    * @note The Network calls the Model object's destructor at exit.
-   * @see register_model, unregister_model, register_user_model
+   * @see register_model
    */
   void register_basis_model( Model& m, bool private_model = false );
 
@@ -177,20 +180,8 @@ public:
    * @param   private_model  If true, model is not entered in modeldict.
    * @return Model ID assigned by network
    * @note The Network calls the Model object's destructor at exit.
-   * @see unregister_model, register_user_model
    */
   index register_model( Model& m, bool private_model = false );
-
-  /**
-   * Unregister a previously registered model.
-   */
-  void unregister_model( index m_id );
-
-  /**
-   * Try unregistering model prototype.
-   * Throws ModelInUseException, if not possible, does not unregister.
-   */
-  void try_unregister_model( index m_id );
 
   /**
    * Copy an existing model and register it as a new model.
@@ -199,8 +190,6 @@ public:
    * @param new_name The name of the new model.
    * @retval Index, identifying the new Model object.
    * @see copy_synapse_prototype()
-   * @todo Not fully compatible with thread number changes and
-   * unregister_model() yet.
    */
   index copy_model( index old_id, std::string new_name );
 
@@ -220,6 +209,19 @@ public:
    */
   template < typename ConnBuilder >
   void register_conn_builder( const std::string& name );
+
+  /**
+   * Add a growth curve for MSP
+   */
+  template < typename GrowthCurve >
+  void register_growth_curve( const std::string& name );
+
+  /**
+   * Create a new Growth Curve object using the GrowthCurve Factory
+   * @param name which defines the type of GC to be created
+   * @return a new Growth Curve object of the type indicated by name
+   */
+  GrowthCurve* new_growth_curve( Name name );
 
   /**
    * Return the model id for a given model name.
@@ -905,6 +907,13 @@ private:
   */
   Dictionary* connruledict_; //!< Dictionary for connection rules.
 
+  /* BeginDocumentation
+     Name: growthcurvedict - growth curves for Model of Structural Plasticity
+     Description:
+     This dictionary provides indexes for the growth curve factory
+  */
+  Dictionary* growthcurvedict_; //!< Dictionary for growth rules.
+
   Model* siblingcontainer_model; //!< The model for the SiblingContainer class
 
   std::string data_path_;   //!< Path for all files written by devices
@@ -927,6 +936,9 @@ private:
 
   std::vector< GenericConnBuilderFactory* >
     connbuilder_factories_; //! ConnBuilder factories, indexed by connruledict_ elements.
+
+  std::vector< GenericGrowthCurveFactory* >
+    growthcurve_factories_; //! GrowthCurve factories, indexed by growthcurvedict_ elements.
 
   Modelrangemanager node_model_ids_; //!< Records the model id of each neuron in the network
 
@@ -1342,6 +1354,13 @@ Network::get_thread_id() const
 #else
   return 0;
 #endif
+}
+
+inline GrowthCurve*
+Network::new_growth_curve( Name name )
+{
+  const long gc_id = ( *growthcurvedict_ )[ name ];
+  return growthcurve_factories_.at( gc_id )->create();
 }
 
 } // namespace

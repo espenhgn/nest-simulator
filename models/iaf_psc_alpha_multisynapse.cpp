@@ -29,6 +29,7 @@
 #include "dictutils.h"
 #include "numerics.h"
 #include "universal_data_logger_impl.h"
+#include "propagator_stability.h"
 
 #include <limits>
 
@@ -58,21 +59,14 @@ RecordablesMap< iaf_psc_alpha_multisynapse >::create()
  * ---------------------------------------------------------------- */
 
 iaf_psc_alpha_multisynapse::Parameters_::Parameters_()
-  : Tau_( 10.0 )
-  , // ms
-  C_( 250.0 )
-  , // pF
-  TauR_( 2.0 )
-  , // ms
-  U0_( -70.0 )
-  , // mV
-  I_e_( 0.0 )
-  , // pA
-  V_reset_( -70.0 - U0_ )
-  , // mV, rel to U0_
-  Theta_( -55.0 - U0_ )
-  , // mV, rel to U0_
-  LowerBound_( -std::numeric_limits< double_t >::infinity() )
+  : Tau_( 10.0 )            // ms
+  , C_( 250.0 )             // pF
+  , TauR_( 2.0 )            // ms
+  , U0_( -70.0 )            // mV
+  , I_e_( 0.0 )             // pA
+  , V_reset_( -70.0 - U0_ ) // mV, rel to U0_
+  , Theta_( -55.0 - U0_ )   // mV, rel to U0_
+  , LowerBound_( -std::numeric_limits< double_t >::infinity() )
   , has_connections_( false )
 {
   tau_syn_.clear();
@@ -154,9 +148,6 @@ iaf_psc_alpha_multisynapse::Parameters_::set( const DictionaryDatum& d )
           "The neuron has connections, therefore the number of ports cannot be reduced." );
       if ( tau_tmp[ i ] <= 0 )
         throw BadProperty( "All synaptic time constants must be > 0." );
-      if ( tau_tmp[ i ] == Tau_ )
-        throw BadProperty(
-          "Membrane and synapse time constant(s) must differ. See note in documentation." );
     }
 
     tau_syn_ = tau_tmp;
@@ -275,11 +266,10 @@ iaf_psc_alpha_multisynapse::calibrate()
   {
     V_.P11_syn_[ i ] = V_.P22_syn_[ i ] = std::exp( -h / P_.tau_syn_[ i ] );
     V_.P21_syn_[ i ] = h * V_.P11_syn_[ i ];
-    V_.P31_syn_[ i ] =
-      1 / P_.C_ * ( ( V_.P11_syn_[ i ] - V_.P33_ ) / ( -1 / P_.tau_syn_[ i ] - -1 / P_.Tau_ )
-                    - h * V_.P11_syn_[ i ] ) / ( -1 / P_.Tau_ - -1 / P_.tau_syn_[ i ] );
-    V_.P32_syn_[ i ] =
-      1 / P_.C_ * ( V_.P33_ - V_.P11_syn_[ i ] ) / ( -1 / P_.Tau_ - -1 / P_.tau_syn_[ i ] );
+
+    // these are determined according to a numeric stability criterion
+    V_.P31_syn_[ i ] = propagator_31( P_.tau_syn_[ i ], P_.Tau_, P_.C_, h );
+    V_.P32_syn_[ i ] = propagator_32( P_.tau_syn_[ i ], P_.Tau_, P_.C_, h );
 
     V_.PSCInitialValues_[ i ] = 1.0 * numerics::e / P_.tau_syn_[ i ];
     B_.spikes_[ i ].resize();

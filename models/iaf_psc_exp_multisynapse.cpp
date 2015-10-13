@@ -29,6 +29,7 @@
 #include "dictutils.h"
 #include "numerics.h"
 #include "universal_data_logger_impl.h"
+#include "propagator_stability.h"
 
 #include <limits>
 
@@ -57,21 +58,14 @@ RecordablesMap< iaf_psc_exp_multisynapse >::create()
  * ---------------------------------------------------------------- */
 
 iaf_psc_exp_multisynapse::Parameters_::Parameters_()
-  : Tau_( 10.0 )
-  , // in ms
-  C_( 250.0 )
-  , // in pF
-  t_ref_( 2.0 )
-  , // in ms
-  U0_( -70.0 )
-  , // in mV
-  I_e_( 0.0 )
-  , // in pA
-  V_reset_( -70.0 - U0_ )
-  , // in mV
-  Theta_( -55.0 - U0_ )
-  , // relative U0_
-  has_connections_( false )
+  : Tau_( 10.0 )            // in ms
+  , C_( 250.0 )             // in pF
+  , t_ref_( 2.0 )           // in ms
+  , U0_( -70.0 )            // in mV
+  , I_e_( 0.0 )             // in pA
+  , V_reset_( -70.0 - U0_ ) // in mV
+  , Theta_( -55.0 - U0_ )   // relative U0_
+  , has_connections_( false )
 {
   tau_syn_.clear();
 }
@@ -258,8 +252,8 @@ nest::iaf_psc_exp_multisynapse::calibrate()
   for ( size_t i = 0; i < P_.num_of_receptors_; i++ )
   {
     V_.P11_syn_[ i ] = std::exp( -h / P_.tau_syn_[ i ] );
-    V_.P21_syn_[ i ] = P_.Tau_ / ( P_.C_ * ( 1.0 - P_.Tau_ / P_.tau_syn_[ i ] ) ) * V_.P11_syn_[ i ]
-      * ( 1.0 - std::exp( h * ( 1.0 / P_.tau_syn_[ i ] - 1.0 / P_.Tau_ ) ) );
+    // these are determined according to a numeric stability criterion
+    V_.P21_syn_[ i ] = propagator_32( P_.tau_syn_[ i ], P_.Tau_, P_.C_, h );
 
     B_.spikes_[ i ].resize();
   }
