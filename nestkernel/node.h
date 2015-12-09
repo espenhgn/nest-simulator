@@ -93,7 +93,6 @@ class histentry;
    SeeAlso: GetStatus, SetStatus, elementstates
  */
 
-
 class Node
 {
   friend class Network;
@@ -237,6 +236,17 @@ public:
   bool is_frozen() const;
 
   /**
+   * Returns true if the node requires a preliminary update step
+   */
+  bool needs_prelim_update() const;
+
+  /**
+   * Sets needs_prelim_up_ member variable
+   * (to be able to set it to "true" for any class derived from Node)
+   */
+  void set_needs_prelim_update( const bool );
+
+  /**
    * Return pointer to network driver class.
    * @todo This member should return a reference, not a pointer.
    */
@@ -309,6 +319,23 @@ public:
    */
   virtual void update( Time const&, const long_t, const long_t ) = 0;
 
+  /**
+   * Bring the node from state $t$ to $t+n*dt$, sends SecondaryEvents
+   * (e.g. GapJunctionEvent) and resets state variables to values at $t$.
+   *
+   * n->prelim_update(T, from, to) performs the update steps beginning
+   * at T+from .. T+to-1.
+   *
+   * Does not emit spikes, does not log state variables.
+   *
+   * throws UnexpectedEvent if not reimplemented in derived class
+   *
+   * @param Time   network time at beginning of time slice.
+   * @param long_t initial step inside time slice
+   * @param long_t post-final step inside time slice
+   *
+   */
+  virtual bool prelim_update( Time const&, const long_t, const long_t );
 
   /**
    * @defgroup status_interface Configuration interface.
@@ -397,6 +424,16 @@ public:
   virtual port handles_test_event( DoubleDataEvent&, rport receptor_type );
   virtual port handles_test_event( DSSpikeEvent&, rport receptor_type );
   virtual port handles_test_event( DSCurrentEvent&, rport receptor_type );
+  virtual port handles_test_event( GapJunctionEvent&, rport receptor_type );
+
+  /**
+   * Required to check, if source neuron may send a SecondaryEvent.
+   * This base class implementation throws IllegalConnection
+   * and needs to be overwritten in the derived class.
+   * @ingroup event_interface
+   * @throws IllegalConnection
+   */
+  virtual void sends_secondary_event( GapJunctionEvent& ge );
 
   /**
    * Register a STDP connection
@@ -469,6 +506,14 @@ public:
   virtual void handle( DoubleDataEvent& e );
 
   /**
+   * Handler for gap junction events.
+   * @see handle(thread, GapJunctionEvent&)
+   * @ingroup event_interface
+   * @throws UnexpectedEvent
+   */
+  virtual void handle( GapJunctionEvent& e );
+
+  /**
    * @defgroup MSP_functions Model of Structural Plasticity in NEST.
    * Functions related to accessibility and setup of variables required for
    * the implementation of MSP in NEST.
@@ -525,7 +570,7 @@ public:
    * @ingroup MSP_functions
    */
   virtual std::map< Name, double_t >
-  get_synaptic_elements()
+  get_synaptic_elements() const
   {
     return std::map< Name, double >();
   }
@@ -629,6 +674,27 @@ public:
    * @returns true if node is a subnet.
    */
   virtual bool is_subnet() const;
+
+  /**
+   * @returns type of signal this node produces
+   * used in check_connection to only connect neurons which send / receive compatible information
+   */
+  virtual SignalType
+  sends_signal() const
+  {
+    return SPIKE;
+  }
+
+  /**
+   * @returns type of signal this node consumes
+   * used in check_connection to only connect neurons which send / receive compatible information
+   */
+  virtual SignalType
+  receives_signal() const
+  {
+    return SPIKE;
+  }
+
 
   /**
    *  Return a dictionary with the node's properties.
@@ -790,6 +856,8 @@ private:
   thread vp_;                //!< virtual process node is assigned to
   bool frozen_;              //!< node shall not be updated if true
   bool buffers_initialized_; //!< Buffers have been initialized
+  bool needs_prelim_up_;     //!< node requires preliminary update step
+
 
 protected:
   static Network* net_; //!< Pointer to global network driver.
@@ -799,6 +867,18 @@ inline bool
 Node::is_frozen() const
 {
   return frozen_;
+}
+
+inline bool
+Node::needs_prelim_update() const
+{
+  return needs_prelim_up_;
+}
+
+inline void
+Node::set_needs_prelim_update( const bool npu )
+{
+  needs_prelim_up_ = npu;
 }
 
 inline bool
