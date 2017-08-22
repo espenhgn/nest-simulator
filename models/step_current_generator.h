@@ -32,7 +32,8 @@
  Parameters:
      The following parameters can be set in the status dictionary:
      amplitude_times   list of doubles - Times at which current changes in ms
-     amplitude_values  list of doubles - Amplitudes of step current current in pA
+     amplitude_values  list of doubles - Amplitudes of step current current in
+                                         pA
 
   Examples:
     The current can be altered in the following way:
@@ -46,19 +47,24 @@
 
   Author: Jochen Martin Eppler, Jens Kremkow
 
-  SeeAlso: ac_generator, dc_generator, step_current_generator, Device, StimulatingDevice
+  SeeAlso: ac_generator, dc_generator, step_current_generator, Device,
+  StimulatingDevice
 */
 
 #ifndef STEP_CURRENT_GENERATOR_H
 #define STEP_CURRENT_GENERATOR_H
 
+// C++ includes:
 #include <vector>
-#include "nest.h"
+
+// Includes from nestkernel:
+#include "connection.h"
 #include "event.h"
+#include "nest_types.h"
 #include "node.h"
 #include "ring_buffer.h"
-#include "connection.h"
 #include "stimulating_device.h"
+#include "universal_data_logger.h"
 
 namespace nest
 {
@@ -77,15 +83,29 @@ public:
 
   port send_test_event( Node&, rport, synindex, bool );
 
+  using Node::handle;
+  using Node::handles_test_event;
+
+  void handle( DataLoggingRequest& );
+
+  port handles_test_event( DataLoggingRequest&, rport );
+
   void get_status( DictionaryDatum& ) const;
   void set_status( const DictionaryDatum& );
+
+  //! Allow multimeter to connect to local instances
+  bool
+  local_receiver() const
+  {
+    return true;
+  }
 
 private:
   void init_state_( const Node& );
   void init_buffers_();
   void calibrate();
 
-  void update( Time const&, const long_t, const long_t );
+  void update( Time const&, const long, const long );
 
   struct Buffers_;
 
@@ -94,33 +114,70 @@ private:
    */
   struct Parameters_
   {
-    std::vector< double_t > amp_times_;
-    std::vector< double_t > amp_values_;
+    std::vector< double > amp_times_;
+    std::vector< double > amp_values_;
 
     Parameters_(); //!< Sets default parameter values
     Parameters_( const Parameters_&, Buffers_& );
+    Parameters_( const Parameters_& );
+    Parameters_& operator=( const Parameters_& p );
 
-    void get( DictionaryDatum& ) const;            //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Buffers_& ); //!< Set values from dicitonary
+    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    //! Set values from dictionary
+    void set( const DictionaryDatum&, Buffers_& );
   };
+
+  // ------------------------------------------------------------
+
+  struct State_
+  {
+    double I_; //!< Instantaneous current value; used for recording current
+
+    State_(); //!< Sets default parameter values
+
+    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+  };
+
+  // ------------------------------------------------------------
+
+  // The next two classes need to be friends to access the State_ class/member
+  friend class RecordablesMap< step_current_generator >;
+  friend class UniversalDataLogger< step_current_generator >;
 
   // ------------------------------------------------------------
 
   struct Buffers_
   {
-    size_t idx_;   //!< index of current amplitude
-    double_t amp_; //!< current amplitude
+    size_t idx_; //!< index of current amplitude
+    double amp_; //!< current amplitude
+
+    Buffers_( step_current_generator& );
+    Buffers_( const Buffers_&, step_current_generator& );
+    UniversalDataLogger< step_current_generator > logger_;
   };
 
   // ------------------------------------------------------------
 
+  double
+  get_I_() const
+  {
+    return S_.I_;
+  }
+
+  // ------------------------------------------------------------
+
   StimulatingDevice< CurrentEvent > device_;
+  static RecordablesMap< step_current_generator > recordablesMap_;
   Parameters_ P_;
+  State_ S_;
   Buffers_ B_;
 };
 
 inline port
-step_current_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool )
+step_current_generator::send_test_event( Node& target,
+  rport receptor_type,
+  synindex syn_id,
+  bool )
 {
   device_.enforce_single_syn_type( syn_id );
 
@@ -130,11 +187,24 @@ step_current_generator::send_test_event( Node& target, rport receptor_type, syni
   return target.handles_test_event( e, receptor_type );
 }
 
+inline port
+step_current_generator::handles_test_event( DataLoggingRequest& dlr,
+  rport receptor_type )
+{
+  if ( receptor_type != 0 )
+  {
+    throw UnknownReceptorType( receptor_type, get_name() );
+  }
+  return B_.logger_.connect_logging_device( dlr, recordablesMap_ );
+}
+
 inline void
 step_current_generator::get_status( DictionaryDatum& d ) const
 {
   P_.get( d );
   device_.get_status( d );
+
+  ( *d )[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void

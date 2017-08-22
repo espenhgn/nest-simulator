@@ -21,14 +21,18 @@
  */
 
 #include "dict.h"
+
+// C++ includes:
+#include <algorithm>
+#include <cstdlib>
+#include <iomanip>
+#include <string>
+#include <vector>
+
+// Includes from sli:
 #include "dictdatum.h"
 #include "dictutils.h"
 #include "sliexceptions.h"
-#include <iomanip>
-#include <algorithm>
-#include <vector>
-#include <cstdlib>
-#include <string>
 
 const Token Dictionary::VoidToken;
 
@@ -57,8 +61,10 @@ Dictionary::clear()
     Token* tok = &i->second;
     Datum* datum = tok->datum();
     DictionaryDatum* d = dynamic_cast< DictionaryDatum* >( datum );
-    if ( !d )
+    if ( not d )
+    {
       continue;
+    }
 
     Dictionary* dt = d->get();
     d->unlock();
@@ -83,10 +89,11 @@ Dictionary::info( std::ostream& out ) const
         << "Value" << std::endl;
     out << "--------------------------------------------------" << std::endl;
 
-    for ( DataVec::const_iterator where = data.begin(); where != data.end(); ++where )
+    for ( DataVec::const_iterator where = data.begin(); where != data.end();
+          ++where )
     {
-      out << std::setw( 25 ) << where->first << std::setw( 20 ) << where->second->gettypename()
-          << where->second << std::endl;
+      out << std::setw( 25 ) << where->first << std::setw( 20 )
+          << where->second->gettypename() << where->second << std::endl;
     }
     out << "--------------------------------------------------" << std::endl;
   }
@@ -104,14 +111,19 @@ Dictionary::add_dict( const std::string& target, SLIInterpreter& i )
   Token d = i.baselookup( Name( target ) );
   targetdict = getValue< DictionaryDatum >( d );
 
-  for ( TokenMap::const_iterator it = TokenMap::begin(); it != TokenMap::end(); ++it )
-    if ( !targetdict->known( it->first ) )
+  for ( TokenMap::const_iterator it = TokenMap::begin(); it != TokenMap::end();
+        ++it )
+  {
+    if ( not targetdict->known( it->first ) )
+    {
       targetdict->insert( it->first, it->second );
+    }
     else
     {
       throw UndefinedName( ( it->first ).toString() );
       //      throw DictError();
     }
+  }
 }
 
 void
@@ -119,7 +131,9 @@ Dictionary::remove( const Name& n )
 {
   TokenMap::iterator it = find( n );
   if ( it != end() )
+  {
     erase( it );
+  }
 }
 
 void
@@ -131,11 +145,14 @@ Dictionary::remove_dict( const std::string& target, SLIInterpreter& i )
   Token d = i.baselookup( Name( target ) );
   targetdict = getValue< DictionaryDatum >( d );
 
-  for ( TokenMap::const_iterator it = TokenMap::begin(); it != TokenMap::end(); ++it )
+  for ( TokenMap::const_iterator it = TokenMap::begin(); it != TokenMap::end();
+        ++it )
   {
     TokenMap::iterator tgt_it = targetdict->find( it->first );
     if ( tgt_it != targetdict->end() )
+    {
       targetdict->erase( tgt_it );
+    }
   }
 }
 
@@ -168,10 +185,13 @@ Dictionary::all_accessed_( std::string& missed, std::string prefix ) const
   missed = "";
 
   // build list of all non-accessed Token names
-  for ( TokenMap::const_iterator it = TokenMap::begin(); it != TokenMap::end(); ++it )
+  for ( TokenMap::const_iterator it = TokenMap::begin(); it != TokenMap::end();
+        ++it )
   {
-    if ( !it->second.accessed() )
+    if ( not it->second.accessed() )
+    {
       missed = missed + " " + prefix + it->first.toString();
+    }
     else if ( it->second.is_a< DictionaryDatum >() )
     {
       // recursively check if nested dictionary content was accessed
