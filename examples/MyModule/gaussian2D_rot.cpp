@@ -2,7 +2,7 @@
 
 using namespace nest;
 
-namespace nest
+namespace mynest
 {
 
 RotGaussian2DParameter::RotGaussian2DParameter( const DictionaryDatum& d )
@@ -28,4 +28,4 @@ RotGaussian2DParameter::RotGaussian2DParameter( const DictionaryDatum& d )
 }
 
 
-}  // namespace nest
+}  // namespace mynest
