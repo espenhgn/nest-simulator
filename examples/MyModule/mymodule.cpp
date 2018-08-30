@@ -29,6 +29,7 @@
 #include "drop_odd_spike_connection.h"
 #include "pif_psc_alpha.h"
 #include "step_pattern_builder.h"
+#include "gaussian2D_rot.h"
 
 // Includes from nestkernel:
 #include "connection_manager_impl.h"
@@ -132,5 +133,8 @@ mynest::MyModule::init( SLIInterpreter* i )
   // Register connection rule.
   nest::kernel().connection_manager.register_conn_builder< StepPatternBuilder >(
     "step_pattern" );
+  
+  // Register RotGaussian2D.
+  nest::TopologyModule::register_parameter< RotGaussian2DParameter >( "RotGaussian2D" );
 
 } // MyModule::init()
