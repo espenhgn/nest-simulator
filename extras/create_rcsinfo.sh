@@ -6,7 +6,11 @@
 
 # default value, if git is not installed or if the source directory is
 # not under version control
+<<<<<<< HEAD
 version="v2.16.0"
+=======
+version="v2.14.0"
+>>>>>>> 479a854ffa82ce09bd70ffa21fa805570bcb8d92
 
 # check if we can run the git command
 if command -v git >/dev/null 2>&1; then
