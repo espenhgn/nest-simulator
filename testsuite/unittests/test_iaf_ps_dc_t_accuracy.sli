@@ -20,8 +20,8 @@
  *
  */
 
- /* BeginDocumentation
-Name: testsuite::test_iaf_ps_dc_t_accuracy - test of temporal accuracy of iaf_neuron subject to DC current
+ /** @BeginDocumentation
+Name: testsuite::test_iaf_ps_dc_t_accuracy - test of temporal accuracy of precise integrate-and-fire neurons subject to DC current
 
 Synopsis: (test_iaf_ps_dc_t_accuracy) run ->  comparison with analytical solution
 
@@ -153,7 +153,7 @@ params begin userdict begin
  T Simulate
 
  neurons
- {[exch dup /t_spike get exch /offset get sub dup t sub abs]}  Map Flatten
+ {[exch /t_spike get dup t sub abs]}  Map Flatten
 
  i prepend
 
@@ -190,7 +190,7 @@ params begin userdict begin
  hlist {SimAtResolution} Map 
 
 
- %dup print_details                    % uncomment for debugging
+ dup print_details                    % uncomment for debugging
 
  {Rest 2 Partition [/All 2] Part} Map  % select columns containing
                                        % the timing errors

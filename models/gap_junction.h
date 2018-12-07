@@ -20,45 +20,6 @@
  *
  */
 
-
-/* BeginDocumentation
-Name: gap_junction - Synapse type for gap-junction connections.
-
-Description:
- gap_junction is a connector to create gap junctions between pairs
- of neurons. Please note that gap junctions are two-way connections:
- In order to create an accurate gap-junction connection between two
- neurons i and j two connections are required:
-
- i j conn_spec gap_junction   Connect
- j i conn_spec gap_junction   Connect
-
- The value of the parameter "delay" is ignored for connections of
- type gap_junction.
-
-Transmits: GapJEvent
-
-References:
-
- Hahne, J., Helias, M., Kunkel, S., Igarashi, J.,
- Bolten, M., Frommer, A. and Diesmann, M.,
- A unified framework for spiking and gap-junction interactions
- in distributed neuronal network simulations,
- Front. Neuroinform. 9:22. (2015),
- doi: 10.3389/fninf.2015.00022
-
- Mancilla, J. G., Lewis, T. J., Pinto, D. J.,
- Rinzel, J., and Connors, B. W.,
- Synchronization of electrically coupled pairs
- of inhibitory interneurons in neocortex,
- J. Neurosci. 27, 2058-2073 (2007),
- doi: 10.1523/JNEUROSCI.2715-06.2007
-
-Author: Jan Hahne, Moritz Helias, Susanne Kunkel
-SeeAlso: synapsedict, hh_psc_alpha_gap
-*/
-
-
 #ifndef GAP_JUNCTION_H
 #define GAP_JUNCTION_H
 
@@ -67,23 +28,56 @@ SeeAlso: synapsedict, hh_psc_alpha_gap
 namespace nest
 {
 
-/**
- * Class representing a gap-junction connection. A gap-junction connection
- * has the properties weight, delay and receiver port.
- */
+/** @BeginDocumentation
+Name: gap_junction - Synapse type for gap-junction connections.
 
+Description:
+
+gap_junction is a connector to create gap junctions between pairs
+of neurons. Gap junctions are bidirectional connections.
+In order to create one accurate gap-junction connection between
+neurons i and j two NEST connections are required: For each created
+connection a second connection with the exact same parameters in
+the opposite direction is required. NEST provides the possibility
+to create both connections with a single call to Connect via
+the make_symmetric flag:
+
+i j << /rule /one_to_one /make_symmetric true >> /gap_junction Connect
+
+The value of the parameter "delay" is ignored for connections of
+type gap_junction.
+
+Transmits: GapJunctionEvent
+
+References:
+
+Hahne, J., Helias, M., Kunkel, S., Igarashi, J.,
+Bolten, M., Frommer, A. and Diesmann, M.,
+A unified framework for spiking and gap-junction interactions
+in distributed neuronal network simulations,
+Front. Neuroinform. 9:22. (2015),
+doi: 10.3389/fninf.2015.00022
+
+Mancilla, J. G., Lewis, T. J., Pinto, D. J.,
+Rinzel, J., and Connors, B. W.,
+Synchronization of electrically coupled pairs
+of inhibitory interneurons in neocortex,
+J. Neurosci. 27, 2058-2073 (2007),
+doi: 10.1523/JNEUROSCI.2715-06.2007
+
+Author: Jan Hahne, Moritz Helias, Susanne Kunkel
+
+SeeAlso: synapsedict, hh_psc_alpha_gap
+*/
 template < typename targetidentifierT >
 class GapJunction : public Connection< targetidentifierT >
 {
-
-  double_t weight_;
 
 public:
   // this line determines which common properties to use
   typedef CommonSynapseProperties CommonPropertiesType;
   typedef Connection< targetidentifierT > ConnectionBase;
   typedef GapJunctionEvent EventType;
-
 
   /**
    * Default Constructor.
@@ -95,24 +89,26 @@ public:
   {
   }
 
-
-  // Explicitly declare all methods inherited from the dependent base ConnectionBase.
-  // This avoids explicit name prefixes in all places these functions are used.
-  // Since ConnectionBase depends on the template parameter, they are not automatically
-  // found in the base class.
+  // Explicitly declare all methods inherited from the dependent base
+  // ConnectionBase. This avoids explicit name prefixes in all places these
+  // functions are used. Since ConnectionBase depends on the template parameter,
+  // they are not automatically found in the base class.
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
 
-
   void
-  check_connection( Node& s, Node& t, rport receptor_type, double_t, const CommonPropertiesType& )
+  check_connection( Node& s,
+    Node& t,
+    rport receptor_type,
+    const CommonPropertiesType& )
   {
     EventType ge;
 
     s.sends_secondary_event( ge );
     ge.set_sender( s );
-    Connection< targetidentifierT >::target_.set_rport( t.handles_test_event( ge, receptor_type ) );
+    Connection< targetidentifierT >::target_.set_rport(
+      t.handles_test_event( ge, receptor_type ) );
     Connection< targetidentifierT >::target_.set_target( &t );
   }
 
@@ -120,13 +116,11 @@ public:
    * Send an event to the receiver of this connection.
    * \param e The event to send
    * \param p The port under which this connection is stored in the Connector.
-   * \param t_lastspike Time point of last spike emitted
    */
   void
-  send( Event& e, thread t, double_t, const CommonSynapseProperties& )
+  send( Event& e, thread t, const CommonSynapseProperties& )
   {
     e.set_weight( weight_ );
-    e.set_delay( get_delay_steps() );
     e.set_receiver( *get_target( t ) );
     e.set_rport( get_rport() );
     e();
@@ -137,10 +131,19 @@ public:
   void set_status( const DictionaryDatum& d, ConnectorModel& cm );
 
   void
-  set_weight( double_t w )
+  set_weight( double w )
   {
     weight_ = w;
   }
+
+  void
+  set_delay( double )
+  {
+    throw BadProperty( "gap_junction connection has no delay" );
+  }
+
+private:
+  double weight_; //!< connection weight
 };
 
 template < typename targetidentifierT >
@@ -151,20 +154,23 @@ GapJunction< targetidentifierT >::get_status( DictionaryDatum& d ) const
   // errors due to internal calls of
   // this function in SLI/pyNEST
   ConnectionBase::get_status( d );
-  def< double_t >( d, names::weight, weight_ );
-  def< long_t >( d, names::size_of, sizeof( *this ) );
+  def< double >( d, names::weight, weight_ );
+  def< long >( d, names::size_of, sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-GapJunction< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+GapJunction< targetidentifierT >::set_status( const DictionaryDatum& d,
+  ConnectorModel& cm )
 {
   // If the delay is set, we throw a BadProperty
   if ( d->known( names::delay ) )
+  {
     throw BadProperty( "gap_junction connection has no delay" );
+  }
 
   ConnectionBase::set_status( d, cm );
-  updateValue< double_t >( d, names::weight, weight_ );
+  updateValue< double >( d, names::weight, weight_ );
 }
 
 } // namespace
